@@ -1,3 +1,3 @@
 # Testinho
 
-> An awesome [project](text-0001.md).
+> An awesome [project](redoc/redoc.html ':include :type=iframe').
