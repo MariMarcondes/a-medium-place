@@ -1,3 +1,3 @@
 # Headline
 
-> An awesome project.
+> An awesome [project](text-0001.md).
