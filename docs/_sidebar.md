@@ -1,6 +1,5 @@
 - [Home](/)
 
   - [Writing Down the Bones](text-0001.md)
-  - [Another book](text-0002.md)
-  - [Yet another book](https://marimarcondes.github.io/a-medium-place/redoc/redoc){:target="_blank"}
+  - [Redoc](https://marimarcondes.github.io/a-medium-place/redoc/redoc)
 
