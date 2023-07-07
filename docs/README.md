@@ -1,6 +1,6 @@
-# Testinho
+<p align="center">
+![alt text](/docs/images/logotipo.png)
+A NuPay for Business é uma empresa que oferece serviços de pagamentos instantâneos.
 
-> An awesome [project](https://marimarcondes.github.io/a-medium-place/redoc/redoc).
-
-[api docs](https://marimarcondes.github.io/a-medium-place/redoc/redoc ':include :type=iframe width=100% height=400px')
-
+Aqui você encontra toda a documentação técnica sobre os produtos e integrações da NuPay for Business.
+</p>
