@@ -10,7 +10,7 @@
       "email": "integration-nupay@nubank.com.br"
     },
     "x-logo": {
-      "url": "./images/logotipo.png",
+      "url": "https://marimarcondes.github.io/a-medium-place/images/logotipo.png",
       "backgroundColor": "#FFFFFF",
       "altText": "NuPay for Business"
     }
