@@ -1,0 +1,2666 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "title": "NuPay for Business - Sellers API",
+    "version": "1.4",
+    "description": "Todas as APIs providas pela NuPay for Business foram desenvolvidas baseadas na tecnologia REST, seguindo as melhores práticas de mercado.\n\nTendo sempre em mente a ideia de uma integração o mais simples possível.\n\nSeu feedback é muito valioso para nós, por isso, sinta-se à vontade para entrar em contato com nossa equipe de tecnologia integration-nupay@nubank.com.br!\n\n# Authentication\n\n<!-- ReDoc-Inject: <security-definitions> -->",
+    "contact": {
+      "name": "Tech Team",
+      "url": "https://nupaybusiness.com.br",
+      "email": "integration-nupay@nubank.com.br"
+    },
+    "x-logo": {
+      "url": "../../../images/logotipo.png",
+      "backgroundColor": "#FFFFFF",
+      "altText": "NuPay for Business"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://sandbox-api.spinpay.com.br/v1",
+      "description": "Servidor de testes (Sandbox)"
+    },
+    {
+      "url": "https://api.spinpay.com.br/v1",
+      "description": "Servidor de Produção"
+    }
+  ],
+  "paths": {
+    "/security/request-signing-keys": {
+      "get": {
+        "tags": [
+          "Segurança"
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SigninKeyResponse",
+                  "properties": {
+                    "publicKey": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "deprecated": false,
+        "security": [
+          {}
+        ],
+        "operationId": "SigningKeysGet",
+        "summary": "Chaves de assinatura",
+        "description": "Para garantir que uma requisição vem dos nossos servidores, uma assinatura é enviada no header `x-spin-signature` de toda requisição iniciada pelos servidores da NuPay for Business. Nessa assinatura utilizamos o algorítimo ed25519 ([Wikipedia](https://en.wikipedia.org/wiki/EdDSA#Ed25519)) e o corpo assinado é composto por:\n* HTTP Method: Método utilizado na requisição HTTP (ex: GET, PUT, POST...);\n* HTTP Path: Caminho da chamada http (ex: /callback, /callback/spinpay ....);\n* Timestamp: Valor do Header `x-spin-timestamp`. Representa o momento em que a requisição foi gerada nos nossos servidores em ISO-8601.\n* HTTP Body: O corpo da requisição HTTP.\nPara realizar a verificação é necessário utilizar alguma implementação de \"check sign\" do Ed25519 (Recomendamos a implementação do [TweetNaCl](https://tweetnacl.cr.yp.to/)) passando nossa chave pública e os valores juntos em uma única string sem separação (`{HTTP Method}{HTTP Path}{Timestamp}{HTTP Body}`).\n\nA chave pública da assinatura pode ser requisitada nesse endpoint. A chave e a assinatura estão encodadas utilizando base64 (<https://pt.wikipedia.org/wiki/Base64>)."
+      }
+    },
+    "/checkouts/payment-methods": {
+      "get": {
+        "tags": [
+          "Checkout"
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentMethodResponse"
+                },
+                "examples": {
+                  "Métodos de pagamentos": {
+                    "value": {
+                      "groups": [
+                        {
+                          "name": "Pix",
+                          "types": [
+                            "pix"
+                          ]
+                        }
+                      ],
+                      "paymentMethods": [
+                        {
+                          "hasQRCode": true,
+                          "hasAppLink": false,
+                          "name": "Pix",
+                          "type": "pix",
+                          "image": "https://url-to-image/pix.png"
+                        },
+                        {
+                          "hasQRCode": false,
+                          "hasAppLink": true,
+                          "name": "NuPay",
+                          "type": "nupay",
+                          "image": "https://url-to-image/nupay.png"
+                        }
+                      ],
+                      "schemas": {
+                        "qrCode": "https://links-api.spinpay.com.br/v1/checkouts/qrcode",
+                        "qrCodeContent": "https://links-api.spinpay.com.br/v1/checkouts/qrcode-content"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedAuthErrorResponse"
+                },
+                "examples": {
+                  "Ausência do campo X-Merchant-Token obrigatório no header.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized appToken header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  },
+                  "Ausência do campo X-Merchant-Key obrigatório no header.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized appKey header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "deprecated": false,
+        "operationId": "PaymentMethodsGet",
+        "summary": "Métodos de pagamento",
+        "description": "Este endpoint retorna as formas de pagamentos disponíveis para o lojista e suas configurações para realizar um pagamento.\n\n   - No caso de NuPay, o AppLink é obtido na resposta da [Criação do Pagamento](#operation/PaymentsPost) no campo (`paymentUrl`), então nada precisa ser feito nessa etapa.\n   - No caso de Pix, é retornado o _schema_ a ser utilizado para obter o QRCode e o QRCodeContent.\n\n\n O campo `groups` separa os métodos de pagamento em diferentes categorias.\n\n\n Caso o Pix esteja disponível como método de pagamento, este estará contido no grupo de nome \"Pix\", e o único valor no atributo `types` indicará a chave que deve ser utilizada como `type` dessa forma de pagamento.\n\n ~~~~\n   \"groups\": [\n       {\n           \"name\": \"Pix\"\n           \"types\": [\"pix\"]\n       }\n   ]\n ~~~~\n\n O campo `groups` deve ser processado pelo lojista para garantir quais são os `type` dos métodos de pagamentos disponíveis, e não é recomendado nenhum tipo de <i>hard-coding</i> desses valores.\n\n\n O campo `paymentMethods` é onde listamos todas as formas de pagamento\n habilitadas para o lojista, conforme exemplo:\n\n ~~~~\n   \"paymentMethods\": [\n       {\n           \"hasQRCode\": true,\n           \"hasAppLink\": false,\n           \"name\": \"Pix\",\n           \"type\": \"pix\",\n           \"image\": \"https://url-to-image/pix.png\"\n       },\n       {\n           \"hasQRCode\": false,\n           \"hasAppLink\": true,\n           \"name\": \"NuPay\",\n           \"type\": \"nupay\",\n           \"image\": \"https://url-to-image/nupay.png\",\n       },\n   ]\n ~~~~\n\n Essas informações devem ser consumidas da API em toda iniciação de pagamento para garantir que os métodos de pagamentos exibidos estejam válidos, e portanto não deve ser feito o <i>hard-coding</i> dos métodos de pagamento.\n Reforçamos que o código acima é um exemplo, e não necessariamente reflete valores reais.\n\n > **Importante:** A implementação do QRCode não se aplica para NuPay, deve ser implementado o AppLink neste caso. Consulte a seção de\n [criação de pagamento](#operation/PaymentsPost) para mais informações.\n\n\n\n <br>\n\n ### Implementando Pix\n\n - Quando o campo `hasQRCode` for `true`, é obrigatório disponibilizar o QRCode no checkout\n e o QRCode Content (representando o Pix Copia e Cola) para experiências mobile.\n\n   A informação necessária para solicitar o QRCode (imagem em base64) e o conteúdo do QRCode (string) é retornada no campo `schemas`, como mostra o exemplo abaixo:\n\n   ~~~~\n     \"schemas\": {\n         \"qrCode\": \"https://links-api.spinpay.com.br/v1/checkouts/qrcode\",\n         \"qrCodeContent\": \"https://links-api.spinpay.com.br/v1/checkouts/qrcode-content\"\n     }\n   ~~~~\n\n\n - Caso o campo hasQRCode tenha o valor `false`, o método de pagamento não deve ser mostrado.\n\n\n #### Obtendo o QRCode Pix\n\n Para exibir a imagem do QR Code do Pix, é necessário montar uma URL a partir das informações abaixo:\n\n - **URL base**, retornada no _schema_ `qrCode`;\n\n - **dois query params**, um indicando o `pspReferenceId` do pagamento, que é retornado na [criação do pedido de pagamento](#operation/PaymentsPost)\n e outro indicando `paymentMethodType` relacionado à forma de pagamento, ou seja, `pix` (string).\n\n\n É necessário que a imagem do QRCode gerada a partir das informações acima seja exibida no checkout do lojista em uma tag `<img>`.\n\n\n O exemplo a seguir mostra como é o formatação da URL:\n\n ~~~~\n   <img src=\"{schema.qrCode}?pspReferenceId={pspReferenceId}&paymentMethodType={paymentMethod.type}\"/>\n ~~~~\n\n Resultando em, como exemplo:\n\n ~~~~\n   <img src=\"https://links-api.spinpay.com.br/v1/checkouts/qrcode?pspReferenceId=12345&paymentMethodType=pix\"/>\n ~~~~\n\n #### Obtendo o QRCode Content de Pix\n\n De forma semelhante, é possível obter o conteúdo do QR Code através de uma requisição <b>GET</b> no endpoint construído a partir do `schemas.qrCodeContent` :\n\n ~~~~\n   GET https://links-api.spinpay.com.br/v1/checkouts/qrcode-content?pspReferenceId={pspReferenceId}&paymentMethodType={paymentMethod.type}\n ~~~~\n\n > **Lembrete:** O conteúdo do QR Code é o código utilizado no Pix Copia e Cola, e portanto a requisição acima deve ser feita\n para obter o código a ser disponibilizado no pagamento via Pix em plataformas mobile."
+      }
+    },
+    "/checkouts/payments": {
+      "post": {
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Bearer `access_token`, necessário somente para pagamentos pré-autorizados de NuPay",
+            "example": "Bearer UVhslgtbavMol9u8",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutCreationRequest"
+              },
+              "examples": {
+                "Checkout Válido - Pix": {
+                  "value": {
+                    "merchantOrderReference": "123432abc",
+                    "transactionId": "D3AA1FC8372E430E8236649DB5EBD08E",
+                    "referenceId": "595b6e74-0030-43ab-9b89-8f2ec9923272",
+                    "merchantName": "Loja dos sonhos",
+                    "storeName": "Loja dos sonhos Campinas",
+                    "amount": {
+                      "value": 10.01,
+                      "currency": "BRL",
+                      "details": {
+                        "taxValue": 0.9
+                      }
+                    },
+                    "delayToAutoCancel": 15,
+                    "paymentMethod": {
+                      "type": "pix"
+                    },
+                    "shopper": {
+                      "reference": "c1245228-1c68-11e6-94ac-0afa86a846a5",
+                      "firstName": "John",
+                      "lastName": "Doe",
+                      "document": "64262091040",
+                      "documentType": "CPF",
+                      "email": "john.doe@example.com",
+                      "phone": {
+                        "country": "55",
+                        "number": "21987654321"
+                      },
+                      "ip": "255.110.231.231",
+                      "locale": "pt-BR"
+                    },
+                    "shipping": {
+                      "value": 49.99,
+                      "company": "Correios",
+                      "address": {
+                        "country": "BRA",
+                        "street": "Praia de Botafogo St.,",
+                        "number": "300",
+                        "complement": "3o. Andar",
+                        "neighborhood": "Botafogo",
+                        "postalCode": "22250040",
+                        "city": "Rio de Janeiro",
+                        "state": "RJ"
+                      }
+                    },
+                    "billingAddress": {
+                      "country": "BRA",
+                      "street": "Brigadeiro Faria Lima Avenue",
+                      "number": "4440",
+                      "complement": "10o. Andar - AP 1001",
+                      "neighborhood": "Itaim Bibi",
+                      "postalCode": "4538132",
+                      "city": "São Paulo",
+                      "state": "SP"
+                    },
+                    "items": [
+                      {
+                        "id": "132981",
+                        "description": "Meu primeiro produto",
+                        "value": 10.01,
+                        "quantity": 1,
+                        "discount": 0,
+                        "taxAmount": 0.9,
+                        "amountExcludingTax": 9.11,
+                        "amountIncludingTax": 10.01
+                      }
+                    ],
+                    "orderUrl": "https://admin.mystore.example.com/orders/v32478982",
+                    "callbackUrl": "https://api.example.com/some-path/to-notify/status-changes?an=mystore"
+                  }
+                },
+                "Checkout Válido - NuPay": {
+                  "value": {
+                    "merchantOrderReference": "123432abc",
+                    "transactionId": "D3AA1FC8372E430E8236649DB5EBD08E",
+                    "referenceId": "595b6e74-0030-43ab-9b89-8f2ec9923272",
+                    "merchantName": "Loja dos sonhos",
+                    "storeName": "Loja dos sonhos Campinas",
+                    "amount": {
+                      "value": 10.01,
+                      "currency": "BRL",
+                      "details": {
+                        "taxValue": 0.9
+                      }
+                    },
+                    "delayToAutoCancel": 15,
+                    "paymentMethod": {
+                      "type": "nupay",
+                      "authorizationType": "manually_authorized"
+                    },
+                    "paymentFlow": {
+                      "returnUrl": "https://mystore.example.com/checkout/order/return/v32478982",
+                      "cancelUrl": "https://mystore.example.com/checkout/order/cancel/v32478982"
+                    },
+                    "shopper": {
+                      "reference": "c1245228-1c68-11e6-94ac-0afa86a846a5",
+                      "firstName": "John",
+                      "lastName": "Doe",
+                      "document": "64262091040",
+                      "documentType": "CPF",
+                      "email": "john.doe@example.com",
+                      "phone": {
+                        "country": "55",
+                        "number": "21987654321"
+                      },
+                      "ip": "255.110.231.231",
+                      "locale": "pt-BR"
+                    },
+                    "shipping": {
+                      "value": 49.99,
+                      "company": "Correios",
+                      "address": {
+                        "country": "BRA",
+                        "street": "Praia de Botafogo St.,",
+                        "number": "300",
+                        "complement": "3o. Andar",
+                        "neighborhood": "Botafogo",
+                        "postalCode": "22250040",
+                        "city": "Rio de Janeiro",
+                        "state": "RJ"
+                      }
+                    },
+                    "billingAddress": {
+                      "country": "BRA",
+                      "street": "Brigadeiro Faria Lima Avenue",
+                      "number": "4440",
+                      "complement": "10o. Andar - AP 1001",
+                      "neighborhood": "Itaim Bibi",
+                      "postalCode": "4538132",
+                      "city": "São Paulo",
+                      "state": "SP"
+                    },
+                    "items": [
+                      {
+                        "id": "132981",
+                        "description": "Meu primeiro produto",
+                        "value": 10.01,
+                        "quantity": 1,
+                        "discount": 0,
+                        "taxAmount": 0.9,
+                        "amountExcludingTax": 9.11,
+                        "amountIncludingTax": 10.01
+                      }
+                    ],
+                    "orderUrl": "https://admin.mystore.example.com/orders/v32478982",
+                    "callbackUrl": "https://api.example.com/some-path/to-notify/status-changes?an=mystore"
+                  }
+                },
+                "Checkout Válido - NuPay Pré-autorizado": {
+                  "value": {
+                    "merchantOrderReference": "abc123456",
+                    "transactionId": "D3AA1FC8372E430E8236649DB5EBD08E",
+                    "referenceId": "595b6e74-0030-43ab-9b89-8f2ec9923272",
+                    "paymentMethod": {
+                      "type": "nupay",
+                      "fundingSource": "credit",
+                      "authorizationType": "pre_authorized"
+                    },
+                    "merchantName": "Loja dos sonhos",
+                    "storeName": "Loja dos sonhos Campinas",
+                    "amount": {
+                      "value": 10.01,
+                      "currency": "BRL",
+                      "details": {
+                        "taxValue": 0.9
+                      }
+                    },
+                    "delayToAutoCancel": 15,
+                    "shopper": {
+                      "reference": "c1245228-1c68-11e6-94ac-0afa86a846a5",
+                      "firstName": "John",
+                      "lastName": "Doe",
+                      "document": "64262091040",
+                      "documentType": "CPF",
+                      "email": "john.doe@example.com",
+                      "phone": {
+                        "country": "55",
+                        "number": "21987654321"
+                      },
+                      "ip": "255.110.231.231",
+                      "locale": "pt-BR"
+                    },
+                    "shipping": {
+                      "value": 49.99,
+                      "company": "Correios",
+                      "address": {
+                        "country": "BRA",
+                        "street": "Praia de Botafogo St.,",
+                        "number": "300",
+                        "complement": "3o. Andar",
+                        "neighborhood": "Botafogo",
+                        "postalCode": "22250040",
+                        "city": "Rio de Janeiro",
+                        "state": "RJ"
+                      }
+                    },
+                    "billingAddress": {
+                      "country": "BRA",
+                      "street": "Brigadeiro Faria Lima Avenue",
+                      "number": "4440",
+                      "complement": "10o. Andar - AP 1001",
+                      "neighborhood": "Itaim Bibi",
+                      "postalCode": "4538132",
+                      "city": "São Paulo",
+                      "state": "SP"
+                    },
+                    "items": [
+                      {
+                        "id": "132981",
+                        "description": "Meu primeiro produto",
+                        "value": 10.01,
+                        "quantity": 1,
+                        "discount": 0,
+                        "taxAmount": 0.9,
+                        "amountExcludingTax": 9.11,
+                        "amountIncludingTax": 10.01
+                      }
+                    ],
+                    "orderUrl": "https://admin.mystore.example.com/orders/v32478982",
+                    "callbackUrl": "https://api.example.com/some-path/to-notify/status-changes?an=mystore"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "tags": [
+          "Checkout"
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutCreationResponse"
+                },
+                "examples": {
+                  "Autorizado pelo consumidor": {
+                    "value": {
+                      "referenceId": "F5C1A4E20D3B4E07B7E871F5B5BC9F91",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "AUTHORIZED"
+                    }
+                  },
+                  "Cancelado pela instituição": {
+                    "value": {
+                      "referenceId": "F5C1A4E20D3B4E07B7E871F5B5BC9F91",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "CANCELLED",
+                      "code": "CANCELLED_BY_INSTITUTION",
+                      "message": "The institution cancelled the payment."
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                },
+                "examples": {
+                  "Campos obrigatórios inválidos": {
+                    "value": {
+                      "status": 400,
+                      "message": "[400] Invalid Checkout referenceId; Invalid PaymentOrder checkout;",
+                      "details": {}
+                    }
+                  },
+                  "Campos schema inválidos": {
+                    "value": {
+                      "status": 400,
+                      "message": "[400] Request schema validation failed.",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedAuthErrorResponse"
+                },
+                "examples": {
+                  "Ausência do campo X-Merchant-Token obrigatório no header.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized appToken header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  },
+                  "Ausência do campo X-Merchant-Key obrigatório no header.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized appKey header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  },
+                  "Access token de pagamento pré-autorizado inválido.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized pre-authorized token; (stackId: 862436d3-3913-4010-9514-f71cc05edba0)",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "MerchantApiKey": [],
+            "MerchantApiToken": []
+          }
+        ],
+        "deprecated": false,
+        "operationId": "PaymentsPost",
+        "summary": "Cria Pagamento",
+        "description": "Endpoint utilizado para criar um novo pedido de pagamento. O endpoint é o mesmo para pagamentos de Pix e NuPay, a diferença está nos dados enviados na requisição, como mostramos nos exemplos ao lado.\n\nO pedido de pagamento é criado via API com o status `WAITING_PAYMENT_METHOD`, aguardando o consumidor realizar o pagamento.\nEste status é atualizado de acordo com a ação do consumidor de pagar ou cancelar a compra. Com isso, é de responsabilidade do lojista adaptar a experiência para informar o consumidor sobre o status do pagamento e a ação a realizar. Para mais informações sobre alterações de status, consulte a seção de [Notificações](#tag/Notificacoes).\n\n<br>\n\n### Tempo de expiração do pedido\nÉ possível configurar a janela de tempo em minutos que o consumidor tem para finalizar o pagamento através do campo `delayToAutoCancel`. Caso não seja identificado nenhum recebimento durante este período, o pagamento é cancelado automaticamente.\n\nO valor padrão, caso não seja informado, é de 30 minutos. Este campo não aceita valores menores do que 1 minuto.\n\n<br>\n\n### Implementando NuPay\nPara a forma de pagamento NuPay, é necessário implementar o AppLink no lugar do QRCode.\n\nO appLink do NuPay é obtido da resposta deste endpoint através do campo `paymentUrl`, retornado ao especificar `nupay` no atributo `paymentMethod.type` na requisição.\n\nDesta forma, para renderizar um botão com o AppLink, basta criar uma tag `<a>` com a URL retornada.\n~~~~\n  return <a href={{appLink}}>Pagar com NuPay</a>\n~~~~\n\n\n### NuPay - Customizando a experiência do consumidor\nPara pagamentos com **NuPay**, recomendamos que os campos abaixo sejam informados na criação do pagamento para uma melhor experiência:\n* __returnUrl__: URL para qual o cliente será direcionado após a finalização do pagamento no aplicativo do Nubank;\n* __cancelUrl__: URL para qual o cliente será direcionado caso o cliente escolha não finalizar o pagamento pelo aplicativo do Nubank, cancelando o pedido.\n\nPor exemplo:\n\n    \"paymentFlow\": {\n        \"returnUrl\": \"https://minhaloja.com.br/pagina-de-retorno-do-consumidor\",\n        \"cancelUrl\": \"https://minhaloja.com.br/retorno-em-caso-de-cancelamento\"\n    }\n\n\n<br>\n\n### Header \"Authorization\"\n\n\nEste header deve ser enviado somente para criação de pagamentos NuPay pré-aprovados, isto é, quando o `paymentMethod.authorizationType` for `pre_authorized`. **Não se aplica** para criação de pagamentos de NuPay com autorização manual, nem para pagamentos Pix.\n<br>\n"
+      }
+    },
+    "/checkouts/payments/{pspReferenceId}/status": {
+      "get": {
+        "tags": [
+          "Checkout"
+        ],
+        "parameters": [
+          {
+            "name": "pspReferenceId",
+            "description": "ID do pagamento que deseja visualizar o status",
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutStatusResponse"
+                },
+                "examples": {
+                  "Pix - Status de um pagamento autorizado": {
+                    "value": {
+                      "paymentMethodType": "pix",
+                      "installmentNumber": 1,
+                      "referenceId": "595b6e74-0030-43ab-9b89-8f2ec9923272",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "timestamp": "2019-11-05T19:59:09Z",
+                      "status": "AUTHORIZED",
+                      "amount": {
+                        "value": 110.01,
+                        "currency": "BRL"
+                      },
+                      "payer": {
+                        "id": "1e557cd9-31c8-4b60-86c6-3f8974416e7a"
+                      }
+                    }
+                  },
+                  "NuPay - Status de um pagamento autorizado": {
+                    "value": {
+                      "paymentMethodType": "nupay",
+                      "installmentNumber": 1,
+                      "paymentType": "credit",
+                      "referenceId": "86371aa1-9e64-4abc-8af9-6400ef23cd69",
+                      "pspReferenceId": "ea451bf2-26b8-40f8-a0a1-27d95df55871",
+                      "timestamp": "2022-08-16T17:20:48.795Z",
+                      "status": "COMPLETED",
+                      "amount": {
+                        "value": 0.02,
+                        "currency": "BRL"
+                      },
+                      "payer": {
+                        "id": "1e557cd9-31c8-4b60-86c6-3f8974416e7a"
+                      }
+                    }
+                  },
+                  "Status de um pagamento autorizado e depois pedido o estorno": {
+                    "value": {
+                      "paymentMethodType": "pix",
+                      "installmentNumber": 1,
+                      "referenceId": "595b6e74-0030-43ab-9b89-8f2ec9923272",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "timestamp": "2019-11-05T19:59:09Z",
+                      "status": "AUTHORIZED",
+                      "amount": {
+                        "value": 110.01,
+                        "currency": "BRL"
+                      },
+                      "payer": {
+                        "id": "1e557cd9-31c8-4b60-86c6-3f8974416e7a"
+                      },
+                      "refunds": [
+                        {
+                          "refundId": "F5C1A4E20D3B4E07B7E871F5B5BC9F22",
+                          "status": "REFUNDING",
+                          "dueDate": null,
+                          "transactionRefundId": "234982-abcde-1235",
+                          "amount": {
+                            "value": 10.01,
+                            "currency": "BRL"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "Status de um pagamento autorizado e depois pedido o estorno, que não executado por conta de um erro": {
+                    "value": {
+                      "paymentMethodType": "pix",
+                      "installmentNumber": 1,
+                      "referenceId": "595b6e74-0030-43ab-9b89-8f2ec9923272",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "timestamp": "2019-11-05T19:59:09Z",
+                      "status": "AUTHORIZED",
+                      "amount": {
+                        "value": 110.01,
+                        "currency": "BRL"
+                      },
+                      "payer": {
+                        "id": "1e557cd9-31c8-4b60-86c6-3f8974416e7a"
+                      },
+                      "refunds": [
+                        {
+                          "refundId": "F5C1A4E20D3B4E07B7E871F5B5BC9F22",
+                          "status": "ERROR",
+                          "dueDate": null,
+                          "transactionRefundId": "234982-abcde-1235",
+                          "amount": {
+                            "value": 10.01,
+                            "currency": "BRL"
+                          },
+                          "error": {
+                            "type": "PAYMENT_METHOD",
+                            "code": "AB03",
+                            "message": "Operation failed. Try again."
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                },
+                "examples": {
+                  "Pagamento com campo inválido": {
+                    "value": {
+                      "status": 400,
+                      "message": "[400] Invalid PaymentOrder id;",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                },
+                "examples": {
+                  "Pagamento não pode ser localizado": {
+                    "value": {
+                      "status": 404,
+                      "message": "[404] Not found PaymentOrder;",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Not Found"
+          }
+        },
+        "deprecated": false,
+        "operationId": "PaymentsStatusByPspReferenceIdGet",
+        "summary": "Status de um pagamento",
+        "description": "Consulta o status de um pedido.\n\n\nNo retorno é possível encontrar informações sobre o pagamento.  Também pode retornar identificação dos estornos, caso exista.\n"
+      }
+    },
+    "/checkouts/payments/{pspReferenceId}/cancel": {
+      "post": {
+        "tags": [
+          "Checkout"
+        ],
+        "parameters": [
+          {
+            "name": "pspReferenceId",
+            "description": "ID do pagamento que deseja cancelar",
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutCancelResponse"
+                },
+                "examples": {
+                  "Cancelamento com sucesso": {
+                    "value": {
+                      "referenceId": "F5C1A4E20D3B4E07B7E871F5B5BC9F91",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "CANCELLED"
+                    }
+                  },
+                  "Cancelamento já realizado": {
+                    "value": {
+                      "referenceId": "F5C1A4E20D3B4E07B7E871F5B5BC9F91",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "DENIED",
+                      "code": "ALREADY_CANCELLED",
+                      "message": "This payment was already cancelled."
+                    }
+                  },
+                  "Cancelamento já realizado pelo usuário": {
+                    "value": {
+                      "referenceId": "F5C1A4E20D3B4E07B7E871F5B5BC9F91",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "DENIED",
+                      "code": "CANCELLED_BY_USER",
+                      "message": "This payment was already cancelled."
+                    }
+                  },
+                  "Cancelamento já realizado pelo lojista": {
+                    "value": {
+                      "referenceId": "F5C1A4E20D3B4E07B7E871F5B5BC9F91",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "DENIED",
+                      "code": "CANCELLED_BY_SELLER",
+                      "message": "This payment was already cancelled."
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                },
+                "examples": {
+                  "Pagamento não pode ser cancelado": {
+                    "value": {
+                      "status": 400,
+                      "message": "[400] Payment cannot be cancelled.",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedAuthErrorResponse"
+                },
+                "examples": {
+                  "Ausência do campo X-Merchant-Token obrigatório no header.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized appToken header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  },
+                  "Ausência do campo X-Merchant-Key obrigatório no header.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized appKey header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                },
+                "examples": {
+                  "Pagamento não pode ser localizado": {
+                    "value": {
+                      "status": 404,
+                      "message": "[404] Not found PaymentOrder;",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "423": {
+            "description": "Locked"
+          }
+        },
+        "deprecated": false,
+        "operationId": "PaymentsCancelByPspReferenceIdPost",
+        "summary": "Cancela um pagamento",
+        "description": "Cancela um pagamento que ainda não foi pago, isto é, pagamentos com status `WAITING_FOR_PAYMENT_METHOD`.\n\nPara pedidos pagos, deve ser aberto um [estorno](#operation/PaymentsRefundByPspReferenceIdPost).\n"
+      }
+    },
+    "/checkouts/payments/{pspReferenceId}/refunds": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundCreationRequest"
+              },
+              "examples": {
+                "Estorno válido": {
+                  "value": {
+                    "transactionRefundId": "234982-abcde-1235",
+                    "amount": {
+                      "value": 110.01,
+                      "currency": "BRL"
+                    },
+                    "notes": "Cliente recebeu produto com defeito."
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "tags": [
+          "Checkout"
+        ],
+        "parameters": [
+          {
+            "name": "pspReferenceId",
+            "description": "ID do pagamento que deseja cancelar",
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundCreationResponse"
+                },
+                "examples": {
+                  "Estorno solicitado com sucesso": {
+                    "value": {
+                      "refundId": "F5C1A4E20D3B4E07B7E871F5B5BC9F22",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "REFUNDING",
+                      "dueDate": null
+                    }
+                  },
+                  "Estorno não executado por falta de saldo": {
+                    "value": {
+                      "refundId": "F5C1A4E20D3B4E07B7E871F5B5BC9F22",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "ERROR",
+                      "dueDate": null,
+                      "error": {
+                        "type": "INSUFFICIENT_FUNDS",
+                        "message": "Insufficient funds to complete refund. Try again later after new transactions are approved."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestErrorResponse"
+                },
+                "examples": {
+                  "Estorno solicitado com valor inválido": {
+                    "value": {
+                      "status": 400,
+                      "message": "[400] Invalid refund amount.",
+                      "details": {}
+                    }
+                  },
+                  "Estorno já criado.": {
+                    "value": {
+                      "status": 400,
+                      "message": "[400] More than one refund with same transactionRefundId",
+                      "details": {}
+                    }
+                  },
+                  "Pagamento cancelado": {
+                    "value": {
+                      "status": 400,
+                      "message": "[400] Invalid This payment was already cancelled; ",
+                      "details": {}
+                    }
+                  },
+                  "Campo obrigaório inválido": {
+                    "value": {
+                      "status": 400,
+                      "message": "[400] Request schema validation failed.",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedAuthErrorResponse"
+                },
+                "examples": {
+                  "Ausência do campo X-Merchant-Token obrigatório no header.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized appToken header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  },
+                  "Ausência do campo X-Merchant-Key obrigatório no header.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized appKey header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundErrorResponse"
+                },
+                "examples": {
+                  "Não encontrou o pedido de compra para fazer o estorno.": {
+                    "value": {
+                      "status": 404,
+                      "message": "[404] Not found Payment order"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreconditionFailedErrorResponse"
+                },
+                "examples": {
+                  "Estorno bloqueado.": {
+                    "value": {
+                      "status": 412,
+                      "message": "[412] Refund is blocked for this PaymentOrder"
+                    }
+                  },
+                  "Estorno bloqueado por reautorização.": {
+                    "value": {
+                      "status": 412,
+                      "message": "[412] Refund is blocked for this PaymentOrder as this is a reauthorized PO"
+                    }
+                  },
+                  "Estorno bloqueado por prévio cancelamento de estorno.": {
+                    "value": {
+                      "status": 412,
+                      "message": "[412] Refund is blocked for this PaymentOrder as this PO had a previous cancelled refund"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          }
+        },
+        "deprecated": false,
+        "operationId": "PaymentsRefundByPspReferenceIdPost",
+        "summary": "Estorna um pagamento",
+        "description": "Este endpoint é utilizado para devolver o valor pago para o consumidor.\n\nÉ permitido estorno de valores parciais tanto para Pix quanto para NuPay, desde que a soma dos estornos parciais em abertos e concluídos não ultrapassem o valor total do pagamento original.\n\nO status de um estorno é alterado conforme o estorno é processado. É responsabilidade do lojista implementar mecanismos de acompanhamento das mudanças de status de um estorno, para isto, consulte a [seção sobre Notificações](#tag/Notificacoes).\n\nOs comprovantes de estornos ficam disponíveis somente através do Painel do Lojista.\n\n### Casos especiais\nEm alguns casos, um estorno pode não ser concluído. Alguns deles são:\n\n  - O pagamento foi reautorizado por algum acordo entre NuPay for Business e lojista;\n  - Um pedido de estorno foi aberto e cancelado anteriormente para o mesmo pagamento;\n  - Foi solicitado o bloqueio de estornos para o pagamento;\n  - Não há saldo suficiente na conta de pagamento do lojista na NuPay for Business;\n  - A conta de origem do pagamento não existe mais.\n\nVocê pode consultar o mapeamento de erros [neste link](/#/checkout/sellers/refund/?id=possíveis-erros-durante-a-execução-de-estornos).\nO erro será descrito na resposta da requisição no campo `error`. Consulte os exemplos de resposta ao lado para mais informações.\n"
+      }
+    },
+    "/checkouts/payments/{pspReferenceId}/refunds/{refundId}": {
+      "get": {
+        "tags": [
+          "Checkout"
+        ],
+        "parameters": [
+          {
+            "name": "refundId",
+            "description": "ID do estorno do pagamento que deseja consultar.",
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "pspReferenceId",
+            "description": "ID do pagamento do estorno.",
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundStatusResponse"
+                },
+                "examples": {
+                  "Estorno sendo processado": {
+                    "value": {
+                      "refundId": "F5C1A4E20D3B4E07B7E871F5B5BC9F22",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "transactionRefundId": "234982-abcde-1235",
+                      "status": "REFUNDING",
+                      "dueDate": null,
+                      "amount": {
+                        "value": 10.01,
+                        "currency": "BRL"
+                      }
+                    }
+                  },
+                  "Estorno realizado com sucesso": {
+                    "value": {
+                      "refundId": "F5C1A4E20D3B4E07B7E871F5B5BC9F22",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "transactionRefundId": "234982-abcde-1235",
+                      "status": "REFUNDED",
+                      "dueDate": null,
+                      "refundDate": "2019-11-04T19:59:09Z",
+                      "amount": {
+                        "value": 10.01,
+                        "currency": "BRL"
+                      }
+                    }
+                  },
+                  "Cancelamento já realizado": {
+                    "value": {
+                      "refundId": "F5C1A4E20D3B4E07B7E871F5B5BC9F22",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "CANCELLED",
+                      "dueDate": null,
+                      "amount": {
+                        "value": 10.01,
+                        "currency": "BRL"
+                      }
+                    }
+                  },
+                  "Estorno expirado.": {
+                    "value": {
+                      "refundId": "F5C1A4E20D3B4E07B7E871F5B5BC9F22",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "EXPIRED",
+                      "dueDate": null,
+                      "amount": {
+                        "value": 10.01,
+                        "currency": "BRL"
+                      }
+                    }
+                  },
+                  "Estorno não executado por conta de um erro": {
+                    "value": {
+                      "refundId": "F5C1A4E20D3B4E07B7E871F5B5BC9F22",
+                      "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+                      "status": "ERROR",
+                      "dueDate": null,
+                      "amount": {
+                        "value": 10.01,
+                        "currency": "BRL"
+                      },
+                      "error": {
+                        "type": "PAYMENT_METHOD",
+                        "code": "AB03",
+                        "message": "Operation failed. Try again."
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundInvalidResponse"
+                },
+                "examples": {
+                  "RefundID preenchido com id inválido.": {
+                    "value": {
+                      "status": 400,
+                      "message": "[400] Invalid Refund id; (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedAuthErrorResponse"
+                },
+                "examples": {
+                  "Ausência do campo X-Merchant-Token obrigatório no header.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized appToken header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  },
+                  "Ausência do campo X-Merchant-Key obrigatório no header.": {
+                    "value": {
+                      "status": 401,
+                      "message": "[401] Unauthorized appKey header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+                      "details": {}
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        },
+        "operationId": "PaymentsRefundByIdGet",
+        "summary": "Consulta um estorno",
+        "description": "Este endpoint retorna as informações do estorno (`refundId`) de um pagamento (`pspReferenceId`), especificados como parâmetros na requisição.\n"
+      }
+    },
+    "/{callbackUrl}": {
+      "post": {
+        "tags": [
+          "Notificações"
+        ],
+        "summary": "Notificações de atualização de status de pedido",
+        "description": "_Lembrete: esse endpoint é implementado **pelo lojista**, e não pela NuPay for Business._\n\nComo mencionado anteriormente, a NuPay for Business fornece uma funcionalidade de notificação de mudança de status de um pedido realizado.\n\nA única informação que será enviada na notificação serão os IDs do pedido e um timestamp da mudança de estado. O estado para o qual o pedido foi atualizado **não será enviado**, assim como outras informações, como por exemplo, o motivo que um pagamento foi negado. Para obte-las, o [endpoint de consulta de status do pedido](#operation/PaymentsStatusByPspReferenceIdGet) deve ser consultado.\n\nPara usar esta funcionalidade, basta especificar o campo `callbackUrl` no momento da [criação do pedido](#operation/PaymentsPost) com a URL para o endpoint implementado no servidor do lojista que irá receber e tratar as notificações.\n\n**Avisos importantes:**\n  - Devido à dinâmica de comunicação entre os diversos sistemas envolvidos no processamento do\n  pedido e à diversidade de caminhos de rede que as chamadas podem tomar, não há garantia efetiva,\n  ordenada e não duplicada da entrega dessas notificações.\n  - Apesar da existência do mecanismo de notificação, a consulta periódica ao endpoint de\n  verificação de status do pedido é recomendada para garantir que mudanças de estado importantes não sejam\n  perdidas, mesmo que haja falha de rede na entrega ou falha no processamento de uma notificação.",
+        "parameters": [
+          {
+            "name": "callbackUrl",
+            "description": "URL de callback fornecida na criação do pagamento.",
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "X-Spin-Signature",
+            "in": "header",
+            "description": "Assinatura da chamada, como descrito na seção Request Signing da documentação",
+            "example": "UVhslgtbavMol9u8iAQsy5NtmlcYZnfbJ7XtnlFzV7B9NNG7C6Z4RQj2k3+wWcJKUP9selY9UPGtgwgmvG6dfg==",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Spin-Timestamp",
+            "in": "header",
+            "description": "Timestamp da chamada, como descrito na seção Request Signing da documentação",
+            "example": "2020-01-01T14:22:18.572Z",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentOrderNotificationCallback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/html": {
+                "example": ""
+              }
+            }
+          },
+          "401": {
+            "description": "Houve um erro de validação na assinatura da notificação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCallbackErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{callbackUrl}/refunds": {
+      "post": {
+        "tags": [
+          "Notificações"
+        ],
+        "summary": "Notificações de atualização de status de estorno",
+        "description": "_Lembrete: esse endpoint é implementado **pelo lojista** e não pela NuPay for Business._\n\nA notificação de estorno segue uma lógica parecida com a de notificações de atualização de status de pedido.\n\nA notificação apenas sinaliza qual estorno foi atualizado, sendo que o [endpoint de consulta de status do estorno](#operation/PaymentsRefundByIdGet) deve ser consultado para ter acesso ao estado mais atualizado do estorno, dado que a única informação que será enviada na notificação serão os IDs do estorno e o timestamp da mudança de estado. O estado para o qual o estorno foi atualizado **não será enviado**, assim como outras informações.\n\nComo a `callbackUrl` foi informada somente na criação do pagamento, toda mudança de status do estorno é notificada pelo mesmo endereço porém **acrescido do path \"/refunds\"**.\n#### Exemplo\nSe o callback foi enviado na criação de pedido de pagamento como:\n```\n    https://meudominio.com.br/notificaPagamento?query=param\n```\nEntão a mudança de status do estorno será notificada na seguinte URL:\n```\n    https://meudominio.com.br/notificaPagamento/refunds?query=param\n```",
+        "parameters": [
+          {
+            "name": "callbackUrl",
+            "description": "URL de callback fornecida na criação do pagamento.",
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "required": true
+          },
+          {
+            "name": "X-Spin-Signature",
+            "in": "header",
+            "description": "Assinatura da chamada, como descrito na seção Request Signing da documentação",
+            "example": "UVhslgtbavMol9u8iAQsy5NtmlcYZnfbJ7XtnlFzV7B9NNG7C6Z4RQj2k3+wWcJKUP9selY9UPGtgwgmvG6dfg==",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Spin-Timestamp",
+            "in": "header",
+            "description": "Timestamp da chamada, como descrito na seção Request Signing da documentação",
+            "example": "2020-01-01T14:22:18.572Z",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundNotificationCallback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/html": {
+                "example": ""
+              }
+            }
+          },
+          "401": {
+            "description": "Houve um erro de validação na assinatura da notificação",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCallbackErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RefundStatus": {
+        "description": "Status de um pedido de estorno.\n\nStatus|Descrição\n-|-\n**CANCELLED**|O pedido de estorno foi cancelado.\n**REFUNDING**|O pedido de estorno está sendo processado.\n**REFUNDED**|O pedido de estorno foi processado e realizado com sucesso.\n**EXPIRED**|O pedido de estorno expirou.\n**ERROR**|Informa quando um erro ocorreu, juntamente com sua  razão.\n",
+        "enum": [
+          "REFUNDING",
+          "REFUNDED",
+          "CANCELLED",
+          "EXPIRED",
+          "ERROR"
+        ],
+        "type": "string"
+      },
+      "RefundError": {
+        "required": [
+          "type",
+          "message"
+        ],
+        "type": "object",
+        "description": "Objeto contendo informações do erro ocorrido durante a execução do estorno.\n",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Tipo do erro.\n\nTipo                   | Descrição\n---------------------- | -----------------------------------------------------------\n**PAYMENT_METHOD**     | Erro na transação durante a execução do estorno.\n**OPERATION**          | Erro de validação durante a execução do estorno.\n**SYSTEM**             | Erro interno do sistema durante a execução do estorno. Pode ser feita nova tentativa de criação de estorno.\n"
+          },
+          "code": {
+            "type": "string",
+            "description": "Código do erro enviado pelo Banco Central. Retornado somente quando o `type` é **PAYMENT_METHOD** e somente para estornos de pagamentos Pix.\n\nCódigo | Descrição\n------ | -----------------------------------------------------------\nAB03   | Timeout no SPI - erro de timing\nAB09   | Transação interrompida devido a erro no PSP Recebedor\nAC03   | Número da conta transacional inexistente ou inválido no PSP Recebedor\nAC06   | A conta transacional especificada encontra-se bloqueada\nAC07   | Número da conta transacional encerrada no PSP Recebedor\nAC14   | Tipo incorreto para conta transacional especificada\nAG03   | Tipo de transação não é suportado/autorizado na conta transacional especificada\nAM02   | Ordem de pagamento/devolução em valor que faz superar o limite permitido para o tipo de conta transacional creditada\nAM09   | Devolução em valor que faz superar o valor da ordem de pagamento correspondente - valor incorreto\nBE01   | CPF/CNPJ do usuário recebedor não é consistente com o titular da conta transacional especificada\nCH11   | CPF/CNPJ do usuário recebedor incorreto\nCH16   | Elemento da mensagem incorreto\nDS04   | Ordem rejeitada pelo PSP Recebedor\nED05   | Erro no processamento do pagamento\n"
+          },
+          "message": {
+            "type": "string",
+            "description": "Descrição do erro"
+          }
+        }
+      },
+      "PaymentMethodGroup": {
+        "title": "PaymentMethodGroup",
+        "required": [
+          "name",
+          "types"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "description": "Nome amigável deste grupo.\n",
+            "type": "string"
+          },
+          "types": {
+            "description": "Os tipos de pagamento que pertencem a este grupo.\n",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PaymentMethodItem": {
+        "title": "PaymentMethodItem",
+        "description": "Objeto de matriz de detalhes a ser fornecido pelo comprador para concluir o pagamento com esse método de pagamento.\n",
+        "required": [
+          "image",
+          "name",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "hasQRCode": {
+            "description": "Determina se esse método de pagamento suporta QRCode.",
+            "type": "boolean"
+          },
+          "hasAppLink": {
+            "description": "Determina se esse método de pagamento suporta AppLink.",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "O nome exibível deste método de pagamento.\n",
+            "type": "string"
+          },
+          "type": {
+            "description": "O tipo da entrada requerida.\n",
+            "type": "string"
+          },
+          "image": {
+            "description": "URL da imagem do logotipo da instituição financeira.",
+            "type": "string"
+          }
+        }
+      },
+      "Amount": {
+        "title": "Amount",
+        "required": [
+          "currency",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "format": "double",
+            "description": "O montante a ser pago.\t",
+            "type": "number"
+          },
+          "currency": {
+            "description": "Moeda do pagamento em formato ISO.\t",
+            "type": "string"
+          },
+          "details": {
+            "$ref": "#/components/schemas/Details",
+            "description": "Detalhes que constituem o montante a ser pago.\t"
+          }
+        }
+      },
+      "RefundAmount": {
+        "title": "RefundAmount",
+        "required": [
+          "currency",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "format": "double",
+            "description": "O montante a ser reembolsado.",
+            "type": "number"
+          },
+          "currency": {
+            "description": "Moeda em formato ISO.",
+            "default": "BRL",
+            "type": "string"
+          }
+        }
+      },
+      "Details": {
+        "title": "Details",
+        "required": [
+          "taxValue"
+        ],
+        "type": "object",
+        "properties": {
+          "taxValue": {
+            "format": "double",
+            "description": "Montante do total de taxas aplicadas.\t",
+            "type": "number"
+          }
+        }
+      },
+      "Shopper": {
+        "title": "Shopper",
+        "required": [
+          "firstName",
+          "lastName",
+          "document",
+          "documentType",
+          "email",
+          "phone"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "description": "Referência que identifica unicamente um consumidor. User Id ou Account Id.\t",
+            "type": "string"
+          },
+          "firstName": {
+            "description": "Primeiro nome do consumidor.",
+            "type": "string"
+          },
+          "lastName": {
+            "description": "Sobrenome do consumidor.",
+            "type": "string"
+          },
+          "document": {
+            "description": "Número do documento do consumidor de acordo com o tipo do documento especificado pelo campo \"documentType\".",
+            "type": "string"
+          },
+          "documentType": {
+            "description": "Tipo do documento do consumidor.",
+            "type": "string",
+            "enum": [
+              "CPF",
+              "CNPJ"
+            ]
+          },
+          "email": {
+            "description": "Email do consumidor.",
+            "type": "string"
+          },
+          "phone": {
+            "$ref": "#/components/schemas/Phone",
+            "description": "Telefone do consumidor completo, com código de país, código de área e número."
+          },
+          "ip": {
+            "description": "IP de onde o consumidor está realizando a compra.",
+            "type": "string"
+          },
+          "locale": {
+            "description": "Língua do consumidor.",
+            "type": "string"
+          }
+        }
+      },
+      "Phone": {
+        "title": "Phone",
+        "required": [
+          "country",
+          "number"
+        ],
+        "type": "object",
+        "properties": {
+          "country": {
+            "description": "Código internacional do país.",
+            "type": "string"
+          },
+          "number": {
+            "description": "Número do telefone com código de área.",
+            "type": "string"
+          }
+        }
+      },
+      "Address": {
+        "title": "Address",
+        "required": [
+          "street",
+          "number",
+          "postalCode",
+          "city",
+          "state",
+          "country"
+        ],
+        "type": "object",
+        "properties": {
+          "country": {
+            "description": "País",
+            "type": "string"
+          },
+          "street": {
+            "description": "Logradouro.",
+            "type": "string"
+          },
+          "number": {
+            "description": "Número",
+            "type": "string"
+          },
+          "complement": {
+            "description": "Complemento. Casa, apartamento, bloco, ponto de referência.",
+            "type": "string"
+          },
+          "neighborhood": {
+            "description": "Bairro",
+            "type": "string"
+          },
+          "postalCode": {
+            "description": "CEP",
+            "type": "string"
+          },
+          "city": {
+            "description": "Cidade",
+            "type": "string"
+          },
+          "state": {
+            "description": "Estado",
+            "type": "string"
+          }
+        }
+      },
+      "Shipping": {
+        "title": "Shipping",
+        "type": "object",
+        "properties": {
+          "value": {
+            "format": "double",
+            "description": "Valor do frete.",
+            "type": "number"
+          },
+          "company": {
+            "description": "Companhia responsável pela entrega.",
+            "type": "string"
+          },
+          "address": {
+            "$ref": "#/components/schemas/Address",
+            "description": "Endereço de entrega"
+          }
+        }
+      },
+      "Item": {
+        "title": "Items",
+        "required": [
+          "id",
+          "value",
+          "quantity",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "ID do item.",
+            "type": "string"
+          },
+          "description": {
+            "description": "Descrição do item.",
+            "type": "string"
+          },
+          "value": {
+            "format": "double",
+            "description": "Preço do item.",
+            "type": "number"
+          },
+          "quantity": {
+            "format": "int32",
+            "description": "Quantidade",
+            "type": "integer"
+          },
+          "discount": {
+            "format": "int32",
+            "description": "Desconto dado ao item pelo vendedor.",
+            "type": "integer"
+          },
+          "taxAmount": {
+            "format": "double",
+            "description": "Valor total de impostos do item.\t",
+            "type": "number"
+          },
+          "amountExcludingTax": {
+            "format": "double",
+            "description": "Valor do item excluindo impostos.\t",
+            "type": "number"
+          },
+          "amountIncludingTax": {
+            "format": "double",
+            "description": "Valor do item incluindo impostos.\t",
+            "type": "number"
+          }
+        }
+      },
+      "PaymentMethodResponse": {
+        "title": "PaymentMethodResponse",
+        "required": [
+          "groups",
+          "paymentMethods",
+          "schemas"
+        ],
+        "type": "object",
+        "properties": {
+          "groups": {
+            "description": "Agrupamento dos métodos de pagamento",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethodGroup"
+            }
+          },
+          "paymentMethods": {
+            "description": "Lista detalhada dos métodos de pagamento necessários para gerar formulários de pagamento.\n",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethodItem"
+            }
+          },
+          "schemas": {
+            "description": "Detalhes de endpoints para obtenção de recursos para pagamento com QRCode.\n",
+            "type": "object",
+            "properties": {
+              "qrCode": {
+                "description": "Endpoint para obtenção do QRCode.\n\nDeve ser usado para construir o endpoint para a obtenção da imagem do QR Code para mostrar para o consumidor.\n",
+                "type": "string",
+                "example": "https://links-api.spinpay.com.br/v1/checkouts/qrcode"
+              },
+              "qrCodeContent": {
+                "description": "Endpoint para obtenção do conteúdo do QRCode.\n\nEsse conteúdo do QRCode é o código utilizado no Pix \"Copia e Cola\", e deve ser usado obter o código a ser disponibilizado no pagamento via Pix em plataformas Mobile.\n",
+                "type": "string",
+                "example": "https://links-api.spinpay.com.br/v1/checkouts/qrcode-content"
+              }
+            }
+          }
+        }
+      },
+      "CheckoutCreationRequest": {
+        "title": "CheckoutRequest",
+        "required": [
+          "merchantOrderReference",
+          "referenceId",
+          "amount",
+          "shopper",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "merchantOrderReference": {
+            "description": "Número da ordem de compra criada pelo seller. Esse número é o que identifica essa compra nos arquivos de conciliação e deve ser único por seller.",
+            "type": "string"
+          },
+          "transactionId": {
+            "description": "Identificação da Transação relacionada a esse pagamento.\t",
+            "type": "string"
+          },
+          "referenceId": {
+            "description": "Id da referência que identifica um pagamento de forma única para o seller. É recomendado que esse valor seja único por pagamento.\t",
+            "type": "string"
+          },
+          "paymentMethod": {
+            "$ref": "#/components/schemas/PaymentMethod"
+          },
+          "paymentFlow": {
+            "$ref": "#/components/schemas/PaymentFlow"
+          },
+          "merchantName": {
+            "description": "Nome do seller que deve ser mostrado ao consumidor.\tSe omitido, o nome cadastrado pelo lojista será utilizado.",
+            "type": "string"
+          },
+          "storeName": {
+            "description": "Nome da filial/loja.",
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Amount",
+            "description": "Coleção que descreve o montante\t"
+          },
+          "delayToAutoCancel": {
+            "format": "int32",
+            "description": "Tempo de espera em minutos para o consumidor aprovar o pagamento. Vencido esse tempo, uma chamada para cancelamento do pagamento é feita automaticamente. Valor padrão é de 30 minutos. Não pode ser menor que 1.\t",
+            "default": 30,
+            "type": "integer"
+          },
+          "shopper": {
+            "$ref": "#/components/schemas/Shopper",
+            "description": "Informações do consumidor."
+          },
+          "shipping": {
+            "$ref": "#/components/schemas/Shipping",
+            "description": "Dados de entrega."
+          },
+          "billingAddress": {
+            "$ref": "#/components/schemas/Address",
+            "description": "Endereço de cobrança."
+          },
+          "items": {
+            "description": "Itens comprados.\t",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            }
+          },
+          "orderUrl": {
+            "description": "URL da ordem de compra do backoffice do seller. Protocolo é obrigatório (https://).\t",
+            "type": "string"
+          },
+          "callbackUrl": {
+            "description": "URL para enviar notificação da plataforma NuPay for Business para a plataforma do seller. Para mais informações sobre as notificações, veja a seção [Notificações](#tag/Notificacoes). Mas caso o lojista não queira implementar esse callbackUrl, ele deve consultar ativamente o [status do pagamento](#operation/PaymentsStatusByPspReferenceIdGet) na NuPay for Business periodicamente (sugestão: a cada 1 minuto). Protocolo é obrigatório (https://).",
+            "type": "string"
+          },
+          "referenceDate": {
+            "description": "Data de referência sem timezone enviada na criação do pedido.",
+            "type": "string",
+            "format": "ISO-8601 YYYY-MM-DD HH:mm:ss"
+          }
+        },
+        "example": {
+          "merchantOrderReference": "123432abc",
+          "transactionId": "D3AA1FC8372E430E8236649DB5EBD08E",
+          "referenceId": "595b6e74-0030-43ab-9b89-8f2ec9923272",
+          "merchantName": "Loja dos sonhos",
+          "amount": {
+            "value": 10.01,
+            "currency": "BRL",
+            "details": {
+              "taxValue": 0.9
+            }
+          },
+          "delayToAutoCancel": 15,
+          "shopper": {
+            "reference": "c1245228-1c68-11e6-94ac-0afa86a846a5",
+            "firstName": "John",
+            "lastName": "Doe",
+            "document": "64262091040",
+            "documentType": "CPF",
+            "email": "john.doe@example.com",
+            "phone": {
+              "country": "55",
+              "number": "21987654321"
+            },
+            "ip": "255.110.231.231",
+            "locale": "pt-BR"
+          },
+          "shipping": {
+            "value": 49.99,
+            "company": "Correios",
+            "address": {
+              "country": "BRA",
+              "street": "Praia de Botafogo St.,",
+              "number": "300",
+              "complement": "3o. Andar",
+              "neighborhood": "Botafogo",
+              "postalCode": "22250040",
+              "city": "Rio de Janeiro",
+              "state": "RJ"
+            }
+          },
+          "billingAddress": {
+            "country": "BRA",
+            "street": "Brigadeiro Faria Lima Avenue",
+            "number": "4440",
+            "complement": "10o. Andar - AP 1001",
+            "neighborhood": "Itaim Bibi",
+            "postalCode": "4538132",
+            "city": "São Paulo",
+            "state": "SP"
+          },
+          "items": [
+            {
+              "id": "132981",
+              "description": "Meu primeiro produto",
+              "value": 10.01,
+              "quantity": 1,
+              "discount": 0,
+              "taxAmount": 0.9,
+              "amountExcludingTax": 9.11,
+              "amountIncludingTax": 10.01
+            }
+          ],
+          "orderUrl": "https://admin.mystore.example.com/orders/v32478982",
+          "callbackUrl": "https://api.example.com/some-path/to-notify/status-changes?an=mystore"
+        }
+      },
+      "PaymentMethod": {
+        "required": [
+          "type"
+        ],
+        "title": "PaymentMethod",
+        "description": "Forma de pagamento a ser utilizada.\n",
+        "type": "object",
+        "properties": {
+          "type": {
+            "description": "Código da forma de pagamento.",
+            "enum": [
+              "pix",
+              "nupay"
+            ]
+          },
+          "fundingSource": {
+            "enum": [
+              "credit",
+              "debit"
+            ],
+            "description": "Origem dos fundos.\n\nObrigatório apenas se **type** for **nupay** e **authorizationType** for **pre_authorized**.\n"
+          },
+          "authorizationType": {
+            "enum": [
+              "manually_authorized",
+              "pre_authorized"
+            ],
+            "description": "Tipo de autorização de pagamento.\n\n- **manually_authorized** é o fluxo onde o usuário precisa autorizar a cobrança todas as vezes.\n- **pre_authorized** é o fluxo onde o usuário fez a autorização previamente pelo fluxo de pagamentos pré-autorizados.\n\nObrigatório apenas para **type** **nupay**.\n",
+            "type": "string;"
+          }
+        }
+      },
+      "CheckoutCreationResponse": {
+        "title": "CheckoutResponse",
+        "required": [
+          "pspReferenceId",
+          "referenceId",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "referenceId": {
+            "description": "O mesmo *referenceId* enviado na solicitação.\n",
+            "type": "string"
+          },
+          "pspReferenceId": {
+            "description": "Identifica um único pagamento. É utilizado para toda comunicação sobre o status de pagamento.\n",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CheckoutCreationStatus",
+            "description": "Status do pedido de pagamento."
+          },
+          "code": {
+            "$ref": "#/components/schemas/CheckoutCreationCode",
+            "description": "Código que complementa o status."
+          },
+          "message": {
+            "$ref": "#/components/schemas/CheckoutCreationMessage",
+            "description": "Mensagem amigável que descreve o código."
+          },
+          "paymentUrl": {
+            "description": "A URL para o qual o consumidor precisa ser redirecionado."
+          },
+          "paymentMethodType": {
+            "description": "Tipo do pagamento escolhido pelo consumidor.",
+            "type": "string"
+          }
+        }
+      },
+      "CheckoutStatusResponse": {
+        "title": "CheckoutResponse",
+        "required": [
+          "pspReferenceId",
+          "referenceId",
+          "status",
+          "amount",
+          "timestamp",
+          "payer"
+        ],
+        "type": "object",
+        "properties": {
+          "referenceId": {
+            "description": "O mesmo *referenceId* enviado na solicitação.\n",
+            "type": "string"
+          },
+          "pspReferenceId": {
+            "description": "Identifica um único pagamento. É utilizado para toda comunicação sobre o status de pagamento.\n",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CheckoutStatus",
+            "description": "Status do pedido de pagamento."
+          },
+          "code": {
+            "$ref": "#/components/schemas/CheckoutStatusCode",
+            "description": "Código que complementa o status."
+          },
+          "message": {
+            "$ref": "#/components/schemas/CheckoutStatusMessage",
+            "description": "Mensagem amigável que descreve o código."
+          },
+          "paymentMethodType": {
+            "description": "Tipo do meio de pagamento escolhido pelo consumidor.",
+            "type": "string"
+          },
+          "refunds": {
+            "description": "Lista de estornos solicitados para este pagamento.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RefundStatusItem"
+            }
+          },
+          "amount": {
+            "description": "Valor do pagamento.",
+            "required": [
+              "currency",
+              "value"
+            ],
+            "type": "object",
+            "properties": {
+              "value": {
+                "format": "double",
+                "description": "O montante a ser pago.\t",
+                "type": "number"
+              },
+              "currency": {
+                "description": "Moeda do pagamento em formato ISO.\t",
+                "type": "string"
+              }
+            }
+          },
+          "timestamp": {
+            "description": "Momento exato (ISO String) da ultima mudança de estado.",
+            "type": "string",
+            "example": "2020-01-01T14:22:18.572Z"
+          },
+          "paymentType": {
+            "description": "Tipo do pagamento via NuPay.\n\n Tipo        | Descrição\n------------ | ------------------------------------\n**credit**   | Pagamento usando crédito.\n**debit**    | Pagamento usando o saldo da NuConta.\n",
+            "type": "string",
+            "example": "credit"
+          },
+          "installmentNumber": {
+            "description": "Número de parcelas. Para pagamentos parcelados com juros, deve ser usado para fins de conciliação e é retornado 1\n",
+            "type": "number",
+            "example": 12
+          },
+          "installmentNumberPurchase": {
+            "description": "Número de parcelas selecionadas para a compra quando for parcelamento com juros.\n",
+            "type": "number",
+            "example": 12
+          },
+          "payer": {
+            "description": "Identificação do pagador.",
+            "required": [
+              "id"
+            ],
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "Id do pagador",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "example": {
+          "referenceId": "595b6e74-0030-43ab-9b89-8f2ec9923272",
+          "pspReferenceId": "ea6dd35a-699e-4dc1-b036-3369f409c8cd",
+          "status": "AUTHORIZED",
+          "paymentMethodType": "pix",
+          "amount": {
+            "value": 110.01,
+            "currency": "BRL"
+          },
+          "payer": {
+            "id": "1e557cd9-31c8-4b60-86c6-3f8974416e7a"
+          }
+        }
+      },
+      "CheckoutStatus": {
+        "description": "Status de um pedido de pagamento.\n\nStatus|Descrição\n-|-\n**PROCESSING**|O pagamento está sendo processado.\n**WAITING_PAYMENT_METHOD**|O pagamento foi recebido e que está aguardando o método de pagamento.\n**AUTHORIZED**|O pagamento foi realizado com um método de pagamento, o seller finaliza o processo de compra e o dinheiro já está em posse da NuPay for Business.\n**CANCELLING**|A requisição de cancelamento é válida e será processada. Ao término do processamento o estado do pagamento será CANCELLED.\n**CANCELLED**|O pagamento foi cancelado.\n**COMPLETED**|O pagamento fica elegível para liquidação e não pode mais ser cancelado, somente o estorno pode ser realizado.\n**ERROR**|Informa quando um erro ocorreu, juntamente com sua  razão.\n",
+        "enum": [
+          "AUTHORIZED",
+          "CANCELLING",
+          "CANCELLED",
+          "PROCESSING",
+          "WAITING_PAYMENT_METHOD",
+          "ERROR",
+          "COMPLETED"
+        ],
+        "type": "string"
+      },
+      "CheckoutStatusCode": {
+        "description": "Complementa status de erro com o código do erro de acordo com tabela abaixo:\n\nstatus|code|message\n-|-|-\n**CANCELLED**|CANCELLED_BY_SELLER|Seller has cancelled this payment.\n**CANCELLED**|CANCELLED_BY_TIMEOUT|This payment was cancelled due to timeout.\n**CANCELLED**|REVERSED|The system can not process this payment after being paid so it was reversed to customer.\n**ERROR**|SYSTEM_ERROR|The system can not process this payment now. Please try again later.\n**ERROR**|REVERSED|The system can not process this payment after being paid so it was reversed to customer.\n\n",
+        "enum": [
+          "CANCELLED_BY_SELLER",
+          "CANCELLED_BY_TIMEOUT",
+          "SYSTEM_ERROR",
+          "REVERSED"
+        ],
+        "type": "string"
+      },
+      "CheckoutStatusMessage": {
+        "description": "Complementa status de erro com a mensagem do erro de acordo com tabela abaixo:\n\nstatus|code|message\n-|-|-\n**CANCELLED**|CANCELLED_BY_USER|User has cancelled this payment.\n**CANCELLED**|CANCELLED_BY_SELLER|Seller has cancelled this payment.\n**CANCELLED**|CANCELLED_BY_TIMEOUT|This payment was cancelled due to timeout.\n**CANCELLED**|REVERSED|This payment was reversed due to an internal error.\n**ERROR**|SYSTEM_ERROR|The system can not process this payment now. Please try again later.\n**ERROR**|REVERSED|This payment was reversed due to an internal error.\n\n",
+        "type": "string"
+      },
+      "RefundCreationRequest": {
+        "title": "Root Type for Refund",
+        "description": "",
+        "required": [
+          "amount",
+          "transactionRefundId"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/RefundAmount",
+            "description": "Valor a ser reembolsado. Pode ser total ou parcial."
+          },
+          "transactionRefundId": {
+            "description": "Identificação da transação relacionada a esse estorno. Deve ser única por estorno.",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Comentário sobre o estorno.",
+            "type": "string"
+          }
+        },
+        "example": {
+          "transactionRefundId": "234982-abcde-1235",
+          "amount": {
+            "value": 110.01,
+            "currency": "BRL"
+          },
+          "notes": "Cliente recebeu produto com defeito."
+        }
+      },
+      "RefundStatusResponse": {
+        "title": "StatusResponse",
+        "required": [
+          "transactionRefundId",
+          "pspReferenceId",
+          "refundId",
+          "status",
+          "dueDate",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "pspReferenceId": {
+            "description": "Identifica um único pagamento. É utilizado para toda comunicação sobre o status de pagamento.\n",
+            "type": "string"
+          },
+          "transactionRefundId": {
+            "description": "Identificação da transação relacionada a esse estorno.\nDeve ser única por estorno.\n\nObservação: Quando for retornado `CREATED_BY_SELLER_PANEL`, significa que o estorno\nfoi criado pelo [painel do lojista](https://painel.spinpay.com.br) e, portanto,\nnão possui o identificador único do lojista salvo na NuPay for Business.\n",
+            "type": "string"
+          },
+          "refundId": {
+            "description": "Identifica um único estorno.\n",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RefundStatus",
+            "description": "Status do estorno do pagamento."
+          },
+          "dueDate": {
+            "format": "date-time",
+            "description": "Data limite para a composição do estorno.",
+            "type": "string"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/RefundAmount",
+            "description": "Valor a ser reembolsado. Pode ser total ou parcial."
+          },
+          "error": {
+            "$ref": "#/components/schemas/RefundError",
+            "description": "Erro durante a criação ou execução de um estorno."
+          }
+        }
+      },
+      "RefundCreationResponse": {
+        "required": [
+          "pspReferenceId",
+          "status",
+          "dueDate",
+          "refundId"
+        ],
+        "type": "object",
+        "properties": {
+          "pspReferenceId": {
+            "description": "Identifica um único pagamento. É utilizado para toda comunicação sobre o status de pagamento.\n",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RefundCreationStatus",
+            "description": "Status do estorno do pagamento."
+          },
+          "dueDate": {
+            "format": "date-time",
+            "description": "Data limite para a composição do estorno.",
+            "type": "string"
+          },
+          "refundId": {
+            "description": "Identificador do estorno criado.",
+            "type": "string"
+          }
+        }
+      },
+      "RefundCreationCode": {
+        "description": "Código de erro para o fluxo de estorno:\n\nstatus|code|message\n-|-|-\n**DENIED**|DENIED|This refund was denied.\n\n**DENIED**|ALREADY_CANCELLED|This payment was already cancelled.\n\n**DENIED**|ALREADY_DENIED|This payment was denied by user or institution and cannot be\nrefunded.\n\n**DENIED**|ALREADY_REFUNDED|This payment was already refunded.\n\n**DENIED**|NOT_SETTLED|This payment was not settled yet to be refunded. Use cancel endpoint instead.\n\n**ERROR**|SYSTEM_ERROR|The system can not process this payment now. Please try again later.\n**ERROR**|INSUFFICIENT_FUNDS|\n",
+        "enum": [
+          "ALREADY_CANCELLED",
+          "ALREADY_DENIED",
+          "ALREADY_REFUNDED",
+          "NOT_SETTLED",
+          "INSUFFICIENT_FUNDS",
+          "SYSTEM_ERROR"
+        ],
+        "type": "string"
+      },
+      "RefundCreationMessage": {
+        "description": "Complementa status de erro com a mensagem do erro de acordo com tabela abaixo:\n\nstatus|code|message\n-|-|-\n**DENIED**|DENIED|This refund was denied.\n\n**DENIED**|ALREADY_CANCELLED|This payment was already cancelled.\n\n**DENIED**|ALREADY_DENIED|This payment was denied by user or institution and cannot be\nrefunded.\n\n**DENIED**|ALREADY_REFUNDED|This payment was already refunded.\n\n**DENIED**|NOT_SETTLED|This payment was not settled yet to be refunded. Use cancel endpoint instead.\n\n**ERROR**|SYSTEM_ERROR|The system can not process this payment now. Please try again later.\n",
+        "type": "string"
+      },
+      "RefundInvalidResponse": {
+        "title": "BadRequest Error response",
+        "description": "Schema da resposta quando erro for 400 BadRequest",
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "Código de erro",
+            "type": "string"
+          },
+          "message": {
+            "description": "Mensagem de erro.",
+            "type": "string"
+          },
+          "details": {
+            "description": "Detalhes do erro.",
+            "type": "string"
+          }
+        },
+        "example": {
+          "status": "400",
+          "message": "[400] Invalid Refund id; (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+          "details": {}
+        }
+      },
+      "CheckoutCreationMessage": {
+        "description": "Complementa status de erro com a mensagem do erro de acordo com tabela abaixo:\n\nstatus|code|message\n-|-|-\n**DENIED**|DENIED|The payment was denied.\n**ERROR**|SYSTEM_ERROR|The system can not process this payment now. Please try again later.\n**CANCELLED**|CANCELLED_BY_INSTITUTION|The institution cancelled the payment.\n",
+        "type": "string"
+      },
+      "CheckoutCreationStatus": {
+        "description": "Status de um pedido de pagamento.\n\nStatus|Descrição\n-|-\n**PROCESSING**|O pagamento está sendo processado.\n**WAITING_PAYMENT_METHOD**|O pagamento foi recebido e que está aguardando o método de pagamento.\n**DENIED**|O pedido de pagamento foi recusado.\n**ERROR**|Informa quando um erro ocorreu, juntamente com sua  razão.\n**CANCELLED**|O pedido de pagamento foi cancelado.\n",
+        "enum": [
+          "DENIED",
+          "PROCESSING",
+          "WAITING_PAYMENT_METHOD",
+          "ERROR",
+          "CANCELLED"
+        ],
+        "type": "string"
+      },
+      "CheckoutCancelResponse": {
+        "title": "CheckoutResponse",
+        "required": [
+          "pspReferenceId",
+          "referenceId",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "referenceId": {
+            "description": "O mesmo *referenceId* enviado na solicitação.\n",
+            "type": "string"
+          },
+          "pspReferenceId": {
+            "description": "Identifica um único pagamento. É utilizado para toda comunicação sobre o status de pagamento.\n",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CheckoutCancelStatus",
+            "description": "Status do pedido de pagamento."
+          },
+          "code": {
+            "$ref": "#/components/schemas/CheckoutCancelCode",
+            "description": "Código que complementa o status."
+          },
+          "message": {
+            "$ref": "#/components/schemas/CheckoutCancelMessage",
+            "description": "Mensagem amigável que descreve o código."
+          }
+        }
+      },
+      "CheckoutCancelCode": {
+        "description": "Complementa status de erro com o código do erro de acordo com tabela abaixo:\n\nstatus|code|message\n-|-|-\n**DENIED**|ALREADY_CANCELLED|This payment was already cancelled.\n**DENIED**|CANCELLED_BY_USER|This payment was already cancelled by user.\n**DENIED**|CANCELLED_BY_SELLER|This payment was already cancelled by seller.\n**DENIED**|ALREADY_DENIED|This payment was denied by user or institution and cannot be refunded.\n**DENIED**|ALREADY_SETTLED|This payment was already settled. Use refund endpoint instead.\n**DENIED**|ALREADY_REFUNDED|This payment was already refunded.\n**ERROR**|SYSTEM_ERROR|The system can not process this payment now. Please try again later.\n",
+        "enum": [
+          "ALREADY_CANCELLED",
+          "CANCELLED_BY_USER",
+          "CANCELLED_BY_SELLER",
+          "ALREADY_DENIED",
+          "ALREADY_SETTLED",
+          "ALREADY_REFUNDED",
+          "SYSTEM_ERROR"
+        ],
+        "type": "string"
+      },
+      "CheckoutCancelMessage": {
+        "description": "Complementa status de erro com a mensagem do erro de acordo com tabela abaixo:\n\nstatus|code|message\n-|-|-\n**DENIED**|ALREADY_CANCELLED|This payment was already cancelled.\n**DENIED**|CANCELLED_BY_USER|This payment was already cancelled.\n**DENIED**|CANCELLED_BY_SELLER|This payment was already cancelled.\n**DENIED**|CANCELLED_BY_USER|This payment was already cancelled.\n**DENIED**|CANCELLED_BY_SELLER|This payment was already cancelled.\n**DENIED**|ALREADY_DENIED|This payment was denied by user or institution and cannot be refunded.\n**DENIED**|ALREADY_SETTLED|This payment was already settled. Use refund endpoint instead.\n**DENIED**|ALREADY_REFUNDED|This payment was already refunded.\n**ERROR**|SYSTEM_ERROR|The system can not process this payment now. Please try again later.\n",
+        "type": "string"
+      },
+      "CheckoutCancelStatus": {
+        "description": "Status de um pedido de pagamento.\n\nStatus|Descrição\n-|-\n**CANCELLING**|A requisição de cancelamento é válida e será processada. Ao término do processamento o estado do pagamento será CANCELLED.\n**CANCELLED**|O pagamento foi cancelado.\n**DENIED**|O pedido de pagamento foi recusado.\n**ERROR**|Informa quando um erro ocorreu, juntamente com sua  razão.\n",
+        "enum": [
+          "CANCELLING",
+          "CANCELLED",
+          "DENIED",
+          "ERROR"
+        ],
+        "type": "string"
+      },
+      "PaymentMethodCreationStatus": {
+        "description": "Status de um pedido de pagamento.\n\nStatus|Descrição\n-|-\n**PROCESSING**|O pagamento está sendo processado.\n**DENIED**|Não é possível enviar o método de pagamento para este pedido.\n**ERROR**|Informa quando um erro ocorreu, juntamente com sua  razão.\n",
+        "enum": [
+          "PROCESSING",
+          "DENIED",
+          "ERROR"
+        ],
+        "type": "string"
+      },
+      "PaymentMethodCreationMessage": {
+        "description": "Complementa status de erro com a mensagem do erro de acordo com tabela abaixo:\n\nstatus|code|message\n-|-|-\n**DENIED**|INVALID_STATUS|This payment state cannot receive another payment method.\n**ERROR**|SYSTEM_ERROR|The system can not process this payment now. Please try again later.\n",
+        "type": "string"
+      },
+      "PaymentMethodCreationResponse": {
+        "title": "CheckoutResponse",
+        "required": [
+          "pspReferenceId",
+          "referenceId",
+          "status",
+          "paymentMethodType"
+        ],
+        "type": "object",
+        "properties": {
+          "referenceId": {
+            "description": "Identificador do pagamento no Seller.\n",
+            "type": "string"
+          },
+          "pspReferenceId": {
+            "description": "Identifica um único pagamento. É utilizado para toda comunicação sobre o status de pagamento.\n",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PaymentMethodCreationStatus",
+            "description": "Status do pedido de pagamento."
+          },
+          "paymentMethodType": {
+            "description": "Tipo do meio de pagamento escolhido pelo consumidor.",
+            "type": "string"
+          },
+          "code": {
+            "$ref": "#/components/schemas/PaymentMethodCreationCode",
+            "description": "Código que complementa o status."
+          },
+          "message": {
+            "$ref": "#/components/schemas/PaymentMethodCreationMessage",
+            "description": "Mensagem amigável que descreve o código."
+          }
+        }
+      },
+      "PaymentMethodCreationCode": {
+        "description": "Complementa status de erro com o código do erro de acordo com tabela abaixo:\n\nstatus|code|message\n-|-|-\n**DENIED**|INVALID_STATUS|This payment state cannot receive another payment method.\n**ERROR**|SYSTEM_ERROR|The system can not process this payment now. Please try again later.\n",
+        "enum": [
+          "INVALID_STATUS",
+          "SYSTEM_ERROR"
+        ],
+        "type": "string"
+      },
+      "CheckoutCreationCode": {
+        "description": "Complementa status de erro com o código do erro de acordo com tabela abaixo:\n\nstatus|code|message\n-|-|-\n**DENIED**|DENIED|The payment was denied.\n**ERROR**|SYSTEM_ERROR|The system can not process this payment now. Please try again later.\n**CANCELLED**|CANCELLED_BY_INSTITUTION|The institution cancelled the payment.\n",
+        "enum": [
+          "DENIED",
+          "SYSTEM_ERROR",
+          "CANCELLED_BY_INSTITUTION"
+        ],
+        "type": "string"
+      },
+      "PaymentFlow": {
+        "title": "PaymentMethod",
+        "description": "Determina o fluxo para o qual os consumidores serão redirecionados após autorização (returnUrl) ou cancelamento (cancelUrl) do pagamento.",
+        "type": "object",
+        "properties": {
+          "returnUrl": {
+            "description": "URL para a qual o consumidor será redirecionado após finalizar o pagamento.\nUsado no fluxo de NuPay e redirecionamento.\nProtocolo é obrigatório (http:// ou https://).",
+            "type": "string"
+          },
+          "cancelUrl": {
+            "description": "URL para onde o cliente será direcionado caso o cliente escolha não finalizar o pagamento, e assim cancelar o pedido no lojista. Usado no fluxo de NuPay e redirecionamento. Caso não seja fornecido, a URL para redirecionamento em caso de cancelamento será o campo _returnUrl_. Protocolo é obrigatório (http:// ou https://).",
+            "type": "string"
+          }
+        },
+        "example": {
+          "type": "redirect",
+          "redirect": "https://mysite.com/finish-page"
+        }
+      },
+      "RefundCreationStatus": {
+        "description": "Status de um pedido de estorno.\n\nStatus|Descrição\n-|-\n**REFUNDING**|O pedido de estorno está sendo processado.\n**EXPIRED**|O pedido de estorno expirou.\n**ERROR**|Informa quando um erro ocorreu, juntamente com sua razão.\n**INSUFFICIENT_FUNDS**|Informa quando não há saldo suficiente para concluir o reembolso.\n",
+        "enum": [
+          "REFUNDING",
+          "EXPIRED",
+          "ERROR",
+          "INSUFFICIENT_FUNDS"
+        ],
+        "type": "string"
+      },
+      "RefundStatusItem": {
+        "title": "StatusResponse",
+        "required": [
+          "refundId",
+          "status",
+          "dueDate",
+          "transactionRefundId",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "refundId": {
+            "description": "Identifica um único estorno.\n",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RefundStatus",
+            "description": "Status do estorno do pagamento."
+          },
+          "dueDate": {
+            "format": "date-time",
+            "description": "Data limite para a composição do estorno.",
+            "type": "string"
+          },
+          "transactionRefundId": {
+            "description": "Identificação da transação relacionada a esse estorno. Deve ser única por estorno.\n\nObservação: Quando for enviado `CREATED_BY_SELLER_PANEL`, significa que o estorno\nfoi criado pelo [painel do lojista](https://painel.spinpay.com.br) e, portanto,\nnão possui o identificador único do lojista salvo na NuPay for Business.\n",
+            "type": "string",
+            "example": "234982-abcde-1235"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/RefundAmount",
+            "description": "Valor a ser reembolsado. Pode ser total ou parcial."
+          },
+          "error": {
+            "$ref": "#/components/schemas/RefundError",
+            "description": "Erro durante a criação ou execução de um estorno."
+          }
+        }
+      },
+      "SigninKeyResponse": {
+        "title": "Root Type for SigninKeyResponse",
+        "description": "",
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "string"
+          }
+        },
+        "example": {
+          "publicKey": "23472348623847623ABCDEF"
+        }
+      },
+      "BadRequestErrorResponse": {
+        "title": "Bad Request Error responses",
+        "description": "Schema da resposta quando erro for 400 Bad Request",
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "Código de erro",
+            "type": "string"
+          },
+          "message": {
+            "description": "Mensagem de erro.",
+            "type": "string"
+          },
+          "details": {
+            "description": "Detalhes do erro.",
+            "type": "string"
+          }
+        },
+        "example": {
+          "status": 400,
+          "message": "[400] Request schema validation failed. (stackId: 50a80d6c-072e-4332-99ec-6567e0edac1d)",
+          "details": {
+            "validationErrors": [
+              {
+                "code": "type",
+                "path": ".amount.value",
+                "message": "should be number",
+                "params": {
+                  "type": "number"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "NotFoundErrorResponse": {
+        "title": "Not Found Error responses",
+        "description": "Schema da resposta quando erro for 404 Not Found",
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "Código de erro",
+            "type": "string"
+          },
+          "message": {
+            "description": "Mensagem de erro.",
+            "type": "string"
+          },
+          "details": {
+            "description": "Detalhes do erro.",
+            "type": "string"
+          }
+        },
+        "example": {
+          "status": "404",
+          "message": "[404] Not found Merchant",
+          "details": {}
+        }
+      },
+      "UnauthorizedAuthErrorResponse": {
+        "title": "Unauthorized Error responses",
+        "description": "Schema da resposta quando erro for 401 Unauthorized",
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "Código de erro",
+            "type": "string"
+          },
+          "message": {
+            "description": "Mensagem de erro.",
+            "type": "string"
+          },
+          "details": {
+            "description": "Detalhes do erro.",
+            "type": "string"
+          }
+        },
+        "example": {
+          "status": "401",
+          "message": "[401] Unauthorized appToken header (stackId: cb3333-f33d-3c3f-b33e-f3f33333fe3f)",
+          "details": {}
+        }
+      },
+      "LockedErrorResponse": {
+        "title": "Locked responses",
+        "description": "Schema da resposta quando erro for 423 Locked",
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "Código de erro",
+            "type": "string"
+          },
+          "message": {
+            "description": "Mensagem de erro.",
+            "type": "string"
+          }
+        }
+      },
+      "PreconditionFailedErrorResponse": {
+        "title": "Precondition Failed Error responses",
+        "description": "Schema da resposta quando erro for 412 Precondition Failed",
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "Código de erro",
+            "type": "string"
+          },
+          "message": {
+            "description": "Mensagem de erro.",
+            "type": "string"
+          }
+        }
+      },
+      "PaymentOrderNotificationCallback": {
+        "title": "Notification callback",
+        "description": "Schema da requisição de notificação enviada pela NuPay for Business",
+        "type": "object",
+        "required": [
+          "pspReferenceId",
+          "referenceId",
+          "timestamp",
+          "paymentMethodType"
+        ],
+        "properties": {
+          "pspReferenceId": {
+            "description": "Identificador único do pedido no sistema",
+            "type": "string",
+            "example": "1339b906-21d2-425d-b388-77b976a75310"
+          },
+          "referenceId": {
+            "description": "Identificador único do pedido no sistema do lojista.",
+            "type": "string",
+            "example": "abcdef123456"
+          },
+          "timestamp": {
+            "description": "Momento exato (ISO String) da mudança de estado.",
+            "type": "string",
+            "example": "2020-01-01T14:22:18.572Z"
+          },
+          "paymentMethodType": {
+            "description": "Código da forma de pagamento.",
+            "enum": [
+              "pix",
+              "nupay"
+            ]
+          }
+        }
+      },
+      "RefundNotificationCallback": {
+        "title": "Notification callback",
+        "description": "Schema da requisição de notificação enviada pela NuPay for Business",
+        "type": "object",
+        "required": [
+          "pspReferenceId",
+          "transactionRefundId",
+          "refundId",
+          "timestamp"
+        ],
+        "properties": {
+          "referenceId": {
+            "description": "Identificador único do pedido no sistema do lojista.",
+            "type": "string",
+            "example": "abcdef123456"
+          },
+          "pspReferenceId": {
+            "description": "Identificador único do pedido no sistema",
+            "type": "string",
+            "example": "1339b906-21d2-425d-b388-77b976a75310"
+          },
+          "transactionRefundId": {
+            "description": "Identificação da transação relacionada a esse estorno. Deve ser única por estorno.\n\nObservação: Quando for enviado `CREATED_BY_SELLER_PANEL`, significa que o estorno\nfoi criado pelo [painel do lojista](https://painel.spinpay.com.br) e, portanto,\nnão possui o identificador único do lojista salvo na NuPay for Business.\n",
+            "type": "string",
+            "example": "234982-abcde-1235"
+          },
+          "refundId": {
+            "description": "Identificador único do pedido de estorno no sistema.",
+            "type": "string",
+            "example": "ca0c64c4-ea11-4719-b5b5-7cf4c4b20e91"
+          },
+          "timestamp": {
+            "description": "Momento exato (ISO String) da mudança de estado.",
+            "type": "string",
+            "example": "2020-01-01T14:22:18.572Z"
+          }
+        }
+      },
+      "NotificationCallbackErrorResponse": {
+        "title": "Notification callback error response",
+        "description": "Schema da resposta à chamada de notificação quando há algum erro",
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "description": "Código de erro\n\nStatus|Descrição\n-|-\n**invalid_signature**|A assinatura enviada na requisição não foi verificada com sucesso.\n**stale_request**|O timestamp enviado na requisição está muito atrasado em relação ao tempo local da aplicação que o recebeu.\n**other**|Algum outro erro não definido nos outros códigos. Passar mais detalhes por mensagem.\n",
+            "enum": [
+              "invalid_signature",
+              "stale_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "description": "Campo opcional para fornecimento de mais detalhes do erro"
+          }
+        }
+      }
+    },
+    "parameters": {
+      "X-Merchant-Key": {
+        "name": "X-Merchant-Key",
+        "description": "Especifica a chave do merchant que está utilizando os serviços da NuPay for Business",
+        "schema": {
+          "type": "string"
+        },
+        "in": "header",
+        "required": true
+      },
+      "X-Merchant-Token": {
+        "name": "X-Merchant-Token",
+        "description": "Especifica o merchant que está fazendo a venda",
+        "schema": {
+          "type": "string"
+        },
+        "in": "header",
+        "required": true
+      },
+      "Content-Type": {
+        "name": "Content-Type",
+        "schema": {
+          "default": "application/json",
+          "type": "string"
+        },
+        "in": "header",
+        "required": true
+      },
+      "Accept": {
+        "name": "Accept",
+        "schema": {
+          "default": "application/json",
+          "type": "string"
+        },
+        "in": "header",
+        "required": true
+      }
+    },
+    "securitySchemes": {
+      "MerchantApiKey": {
+        "type": "apiKey",
+        "description": "API Key <a href=\"https://docs.spinpay.com.br/#/checkout/?id=credenciais\" target=\"_blank\">(seção Credenciais).</a>",
+        "name": "X-Merchant-Key",
+        "in": "header"
+      },
+      "MerchantApiToken": {
+        "type": "apiKey",
+        "description": "API Token <a href=\"https://docs.spinpay.com.br/#/checkout/?id=credenciais\" target=\"_blank\">(seção Credenciais).</a>",
+        "name": "X-Merchant-Token",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "MerchantApiKey": [],
+      "MerchantApiToken": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Evoluções da API",
+      "description": "É necessário que a implementação da integração da sua loja e sistemas seja construída de forma retro-compatível e com suporte a:\n* Adição de novos endpoints;\n* Adição de novos parâmetros opcionais nos endpoints existentes;\n* Adição de novos campos no corpo da resposta de endpoints;\n* Adição de novos elementos nas enumerações;\n* Alteração da ordem de campos.\n\nAs mudanças acima são possíveis e esperadas dado a evolução do produto, sendo altamente recomendável que a implementação da sua loja esteja preparada para absorver essas adições, sem quebrar o fluxo da integração já implementada.  Para absorver possíveis adições, é necessário que campos inesperados das estruturas JSON sejam apenas ignorados e não rejeitados pela implementação da sua loja.\n\nQuaisquer mudanças não retro-compatíveis gerarão uma nova versão da API e os clientes serão avisados sobre a necessidade de rollout para a nova versão.\n"
+    },
+    {
+      "name": "Segurança",
+      "description": "Conjunto de APIs relacionadas a segurança."
+    },
+    {
+      "name": "Checkout",
+      "description": "Conjunto de APIs para o fluxo de checkout."
+    },
+    {
+      "name": "Notificações",
+      "description": "Para identificar mudanças de status de um pagamento ou de um estorno, há duas formas:\n1. o backend do lojista faz ativamente consulta periódicas (_polling_) aos endpoints de [consulta de pagamento](#operation/PaymentsStatusByPspReferenceIdGet) ou de [consulta de estorno](#operation/PaymentsRefundByIdGet). Recomendamos que o _polling_ seja feito em intervalos de 1 minuto;\n\n  OU\n\n2. o lojista implementa e disponibiliza um endpoint de _callback_ para receber notificações via API da NuPay for Business assim que acontecer a mudança do status, seja do pagamento ou do estorno. Após receber a notificação, se for necessário identificar qual é o novo status, os endpoints de [consulta de pagamento](#operation/PaymentsStatusByPspReferenceIdGet) ou de [consulta de estorno](#operation/PaymentsRefundByIdGet) devem ser usados para isso, dado que o novo status não é informado na notificação por motivos de segurança.\n\nNesta seção, detalhamos melhor sobre a implementação das notificações.\n"
+    }
+  ]
+}
